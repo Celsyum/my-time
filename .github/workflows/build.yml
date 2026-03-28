@@ -1,0 +1,37 @@
+name: Build
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  pull_request:
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Restore
+        run: dotnet restore .\MyTime.sln
+
+      - name: Build
+        run: dotnet build .\MyTime.sln --configuration Release --no-restore
+
+      - name: Publish app
+        run: dotnet publish .\src\MyTime\MyTime.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:PublishTrimmed=false
+
+      - name: Upload publish artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: MyTime-publish
+          path: src/MyTime/bin/Release/net10.0-windows/win-x64/publish
+          if-no-files-found: error

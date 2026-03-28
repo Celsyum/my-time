@@ -1,0 +1,29 @@
+# Build outputs
+bin/
+obj/
+dist/
+publish/
+
+# Visual Studio / VS Code
+.vs/
+.vscode/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# Logs
+*.log
+
+# NuGet
+packages/
+*.nupkg
+
+# Local history / temp
+.history/
+*.tmp
+*.temp
+
+# OS files
+Thumbs.db
+Desktop.ini
