@@ -126,7 +126,7 @@ Publish output:
 ### Build installer with Inno Setup
 
 ```powershell
-".\Inno Setup 6\ISCC.exe" ".\installer\MyTime.iss"
+& "D:\Programs\Inno Setup 6\ISCC.exe" ".\installer\MyTime.iss"
 ```
 
 Installer output:

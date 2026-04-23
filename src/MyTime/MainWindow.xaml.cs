@@ -106,6 +106,16 @@ public partial class MainWindow : Window
         PauseTimer();
     }
 
+    private void Discard_Click(object sender, RoutedEventArgs e)
+    {
+        if (!IsRunning || !_isPaused)
+        {
+            return;
+        }
+
+        DiscardCurrentProgress();
+    }
+
     private void GroupByComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
         RefreshHistory();
@@ -248,6 +258,22 @@ public partial class MainWindow : Window
         RefreshHistory();
     }
 
+    private void DiscardCurrentProgress()
+    {
+        _runningStartUtc = null;
+        _pausedAtUtc = null;
+        _nextRunningReminderUtc = null;
+        _pausedSeconds = 0;
+        _lastElapsedSeconds = 0;
+        _isPaused = false;
+        _awaitingDescription = false;
+        DescriptionTextBox.Text = string.Empty;
+        ValidationText.Text = string.Empty;
+        _uiTimer.Stop();
+        UpdateElapsedDisplay();
+        UpdateUiState();
+    }
+
     private void SaveCompletedActivity(string description, DateTime endUtc, long durationSeconds)
     {
         if (!_runningStartUtc.HasValue)
@@ -336,6 +362,7 @@ public partial class MainWindow : Window
         QuitAppButton.IsEnabled = !IsRunning;
         PauseResumeButton.IsEnabled = IsRunning;
         PauseResumeButton.Content = _isPaused ? "Resume" : "Pause";
+        DiscardButton.Visibility = IsRunning && _isPaused ? Visibility.Visible : Visibility.Collapsed;
 
         if (IsRunning)
         {

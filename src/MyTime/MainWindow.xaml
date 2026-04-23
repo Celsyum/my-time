@@ -51,19 +51,35 @@
                            FontWeight="SemiBold"
                            Foreground="#666666"
                            Margin="0,0,0,12" />
-                <StackPanel Orientation="Horizontal">
-                    <Button x:Name="StartStopButton"
-                        Content="Start"
-                        Width="140"
-                        Height="42"
-                        Click="StartStop_Click" />
-                    <Button x:Name="PauseResumeButton"
-                        Content="Pause"
-                        Width="140"
-                        Height="42"
-                        Margin="8,0,0,0"
-                        Click="PauseResume_Click" />
-                </StackPanel>
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <StackPanel Orientation="Horizontal" Grid.Column="0">
+                        <Button x:Name="StartStopButton"
+                            Content="Start"
+                            Width="140"
+                            Height="42"
+                            Click="StartStop_Click" />
+                        <Button x:Name="PauseResumeButton"
+                            Content="Pause"
+                            Width="140"
+                            Height="42"
+                            Margin="8,0,0,0"
+                            Click="PauseResume_Click" />
+                    </StackPanel>
+
+                    <Button x:Name="DiscardButton"
+                            Grid.Column="1"
+                            Content="Discard"
+                            Width="120"
+                            Height="42"
+                            HorizontalAlignment="Right"
+                            Visibility="Collapsed"
+                            Click="Discard_Click" />
+                </Grid>
 
                 <StackPanel x:Name="DescriptionPanel" Margin="0,12,0,0" Visibility="Collapsed">
                     <TextBlock Text="Description (required)" FontWeight="SemiBold" />
