@@ -2,6 +2,7 @@
 using System.ComponentModel;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Media;
 using System.Windows.Threading;
 using MyTime.Models;
 using MyTime.Services;
@@ -21,8 +22,11 @@ public partial class MainWindow : Window
     private readonly AppSettings _settings;
     private TrayService? _trayService;
     private DateTime? _runningStartUtc;
+    private DateTime? _pausedAtUtc;
     private DateTime? _nextRunningReminderUtc;
+    private long _pausedSeconds;
     private long _lastElapsedSeconds;
+    private bool _isPaused;
     private bool _awaitingDescription;
     private bool _isExiting;
 
@@ -86,6 +90,22 @@ public partial class MainWindow : Window
         ResetAfterSave();
     }
 
+    private void PauseResume_Click(object sender, RoutedEventArgs e)
+    {
+        if (!IsRunning)
+        {
+            return;
+        }
+
+        if (_isPaused)
+        {
+            ResumeTimer();
+            return;
+        }
+
+        PauseTimer();
+    }
+
     private void GroupByComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
         RefreshHistory();
@@ -142,7 +162,7 @@ public partial class MainWindow : Window
         if (IsRunning && _runningStartUtc.HasValue)
         {
             var exitUtc = DateTime.UtcNow;
-            var seconds = Math.Max(1, (long)(exitUtc - _runningStartUtc.Value).TotalSeconds);
+            var seconds = Math.Max(1, CalculateElapsedSeconds(exitUtc));
             var exitLocal = exitUtc.ToLocalTime();
             var description = $"Auto-stopped on full exit at {exitLocal:yyyy-MM-dd HH:mm:ss}";
             SaveCompletedActivity(description, exitUtc, seconds);
@@ -157,11 +177,42 @@ public partial class MainWindow : Window
     private void StartTimer()
     {
         _runningStartUtc = DateTime.UtcNow;
+        _pausedAtUtc = null;
         _nextRunningReminderUtc = DateTime.UtcNow.Add(RunningReminderInterval);
+        _pausedSeconds = 0;
         _lastElapsedSeconds = 0;
+        _isPaused = false;
         _awaitingDescription = false;
         DescriptionTextBox.Text = string.Empty;
         _uiTimer.Start();
+        UpdateUiState();
+    }
+
+    private void PauseTimer()
+    {
+        if (!_runningStartUtc.HasValue || _isPaused)
+        {
+            return;
+        }
+
+        _isPaused = true;
+        _pausedAtUtc = DateTime.UtcNow;
+        UpdateElapsedDisplay();
+        UpdateUiState();
+    }
+
+    private void ResumeTimer()
+    {
+        if (!_isPaused || !_pausedAtUtc.HasValue)
+        {
+            return;
+        }
+
+        var pausedDurationSeconds = Math.Max(0, (long)(DateTime.UtcNow - _pausedAtUtc.Value).TotalSeconds);
+        _pausedSeconds += pausedDurationSeconds;
+        _pausedAtUtc = null;
+        _isPaused = false;
+        UpdateElapsedDisplay();
         UpdateUiState();
     }
 
@@ -173,7 +224,9 @@ public partial class MainWindow : Window
         }
 
         _uiTimer.Stop();
-        _lastElapsedSeconds = Math.Max(1, (long)(DateTime.UtcNow - _runningStartUtc.Value).TotalSeconds);
+        _lastElapsedSeconds = Math.Max(1, CalculateElapsedSeconds(DateTime.UtcNow));
+        _isPaused = false;
+        _pausedAtUtc = null;
         _awaitingDescription = true;
         UpdateElapsedDisplay();
         UpdateUiState();
@@ -182,8 +235,11 @@ public partial class MainWindow : Window
     private void ResetAfterSave()
     {
         _runningStartUtc = null;
+        _pausedAtUtc = null;
         _nextRunningReminderUtc = null;
+        _pausedSeconds = 0;
         _lastElapsedSeconds = 0;
+        _isPaused = false;
         _awaitingDescription = false;
         DescriptionTextBox.Text = string.Empty;
         ValidationText.Text = string.Empty;
@@ -239,10 +295,12 @@ public partial class MainWindow : Window
         if (IsRunning && _runningStartUtc.HasValue)
         {
             var nowUtc = DateTime.UtcNow;
-            var elapsedSeconds = Math.Max(0, (long)(nowUtc - _runningStartUtc.Value).TotalSeconds);
+            var elapsedSeconds = CalculateElapsedSeconds(nowUtc);
             _lastElapsedSeconds = elapsedSeconds;
             ElapsedText.Text = HistoryGroupingService.FormatDuration(elapsedSeconds);
-            _trayService?.SetTooltip($"MyTime running {ElapsedText.Text}");
+            _trayService?.SetTooltip(_isPaused
+                ? $"MyTime paused {ElapsedText.Text}"
+                : $"MyTime running {ElapsedText.Text}");
 
             if (_nextRunningReminderUtc.HasValue && nowUtc >= _nextRunningReminderUtc.Value)
             {
@@ -261,15 +319,31 @@ public partial class MainWindow : Window
         _trayService?.SetTooltip("MyTime");
     }
 
+    private long CalculateElapsedSeconds(DateTime nowUtc)
+    {
+        if (!_runningStartUtc.HasValue)
+        {
+            return 0;
+        }
+
+        var effectiveEnd = _isPaused && _pausedAtUtc.HasValue ? _pausedAtUtc.Value : nowUtc;
+        var rawSeconds = (long)(effectiveEnd - _runningStartUtc.Value).TotalSeconds;
+        return Math.Max(0, rawSeconds - _pausedSeconds);
+    }
+
     private void UpdateUiState()
     {
         QuitAppButton.IsEnabled = !IsRunning;
+        PauseResumeButton.IsEnabled = IsRunning;
+        PauseResumeButton.Content = _isPaused ? "Resume" : "Pause";
 
         if (IsRunning)
         {
             StartStopButton.Content = "Stop";
             DescriptionPanel.Visibility = Visibility.Collapsed;
             ValidationText.Text = string.Empty;
+            TimerStateText.Text = _isPaused ? "Paused" : "Running";
+            TimerStateText.Foreground = new SolidColorBrush((System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString(_isPaused ? "#B26A00" : "#0E7A0D"));
             return;
         }
 
@@ -277,11 +351,15 @@ public partial class MainWindow : Window
         {
             StartStopButton.Content = "Start";
             DescriptionPanel.Visibility = Visibility.Visible;
+            TimerStateText.Text = "Ready to Save";
+            TimerStateText.Foreground = new SolidColorBrush((System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString("#1A56B3"));
             return;
         }
 
         StartStopButton.Content = "Start";
         DescriptionPanel.Visibility = Visibility.Collapsed;
+        TimerStateText.Text = "Idle";
+        TimerStateText.Foreground = new SolidColorBrush((System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString("#666666"));
     }
 
     private void ToggleWindowVisibility()
